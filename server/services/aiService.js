@@ -27,6 +27,14 @@ function getOpenAIClient() {
 
 export const aiService = {
   /**
+   * Safe configuration check reporting only boolean/status, NEVER the key
+   */
+  isConfigured() {
+    const apiKey = (process.env.OPENAI_API_KEY || '').trim();
+    return Boolean(apiKey && apiKey !== 'your_api_key_here' && !apiKey.startsWith('sk-placeholder'));
+  },
+
+  /**
    * 1. Resume Summary Generation
    */
   async generateResumeSummary({

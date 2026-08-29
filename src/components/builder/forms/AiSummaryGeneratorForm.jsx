@@ -85,8 +85,9 @@ export function AiSummaryGeneratorForm() {
       if (results && results.length > 0) {
         setGeneratedVariations(results);
         setActiveVariationIndex(0);
-        setCurrentEditableText(results[0].summary);
-        showToast('Generated 3 professional AI resume summaries!', 'ai');
+        const firstText = results[0]?.content || results[0]?.summary || '';
+        setCurrentEditableText(firstText);
+        showToast('Generated professional AI resume summaries!', 'ai');
       } else {
         throw new Error('No summary variations returned.');
       }
@@ -103,7 +104,8 @@ export function AiSummaryGeneratorForm() {
   const handleSelectVariation = (index) => {
     setActiveVariationIndex(index);
     if (generatedVariations[index]) {
-      setCurrentEditableText(generatedVariations[index].summary);
+      const text = generatedVariations[index]?.content || generatedVariations[index]?.summary || '';
+      setCurrentEditableText(text);
     }
   };
 
@@ -339,27 +341,29 @@ export function AiSummaryGeneratorForm() {
           
           {/* Variation Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
-            {generatedVariations.map((item, idx) => (
-              <button
-                key={item.id}
-                onClick={() => handleSelectVariation(idx)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                  activeVariationIndex === idx
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                <span>{item.title.split(' ')[0]}</span>
-                <span>Variation {idx + 1}</span>
-                {item.badge && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    activeVariationIndex === idx ? 'bg-indigo-400/30 text-white' : 'bg-slate-200 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            ))}
+            {generatedVariations.map((item, idx) => {
+              const label = item.label || item.tone || `Variation ${idx + 1}`;
+              return (
+                <button
+                  key={item.id || idx}
+                  onClick={() => handleSelectVariation(idx)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    activeVariationIndex === idx
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <span>{label}</span>
+                  {item.badge && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      activeVariationIndex === idx ? 'bg-indigo-400/30 text-white' : 'bg-slate-200 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Editable Text Area Box */}
@@ -368,7 +372,7 @@ export function AiSummaryGeneratorForm() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>{generatedVariations[activeVariationIndex]?.title || 'Generated Resume Summary'}</span>
+                <span>{generatedVariations[activeVariationIndex]?.label || generatedVariations[activeVariationIndex]?.tone || 'Generated Resume Summary'}</span>
               </span>
 
               <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400">

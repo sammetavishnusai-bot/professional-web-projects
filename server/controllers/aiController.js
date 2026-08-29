@@ -151,14 +151,12 @@ export async function matchJobDescription(req, res) {
 }
 
 export function getHealth(req, res) {
+  const configured = aiService.isConfigured();
   return res.status(200).json({
     status: 'healthy',
     service: 'ResuSphere AI Backend Engine',
-    version: '1.0.0',
-    security: {
-      clientKeysExposed: false,
-      environmentConfigured: Boolean(process.env.PORT)
-    },
-    uptimeSeconds: process.uptime()
+    aiStatus: configured ? 'AI configured' : 'AI not configured',
+    configured: configured,
+    uptimeSeconds: Math.floor(process.uptime())
   });
 }
