@@ -23,6 +23,14 @@ export function validateSummaryRequest(req, res, next) {
     });
   }
 
+  if (experience && typeof experience === 'string' && experience.length > 2000) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: '"experience" cannot exceed 2000 characters.'
+    });
+  }
+
   next();
 }
 
@@ -48,6 +56,56 @@ export function validateSkillsRequest(req, res, next) {
   next();
 }
 
+export function validateSkillGapRequest(req, res, next) {
+  const { targetRole, userSkills } = req.body || {};
+
+  if (!targetRole || typeof targetRole !== 'string' || !targetRole.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Field "targetRole" is required.'
+    });
+  }
+
+  if (userSkills && !Array.isArray(userSkills)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: '"userSkills" must be an array of skill strings.'
+    });
+  }
+
+  next();
+}
+
+export function validateProjectRecommendRequest(req, res, next) {
+  const { targetRole } = req.body || {};
+
+  if (!targetRole || typeof targetRole !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Field "targetRole" is required.'
+    });
+  }
+
+  next();
+}
+
+export function validateInterviewGenRequest(req, res, next) {
+  const { targetRole } = req.body || {};
+
+  if (!targetRole || typeof targetRole !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Field "targetRole" is required.'
+    });
+  }
+
+  next();
+}
+
 export function validateJobMatcherRequest(req, res, next) {
   const { jobDescription, resumeData } = req.body || {};
 
@@ -56,6 +114,14 @@ export function validateJobMatcherRequest(req, res, next) {
       success: false,
       error: 'Validation Error',
       message: 'Field "jobDescription" is required and must contain at least 20 characters.'
+    });
+  }
+
+  if (jobDescription.length > 10000) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Field "jobDescription" cannot exceed 10,000 characters.'
     });
   }
 
