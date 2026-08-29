@@ -1,61 +1,96 @@
 /**
- * Server-Side AI Service Layer
- * Centralizes AI generation, skill suggestion heuristics, project recommendations,
- * interview question formulation, and job description matching.
- * Reads API keys ONLY from process.env (Server Environment) without exposing keys to clients.
+ * Server-Side AI Service Layer (ResuSphere AI)
+ * Connects securely to OpenAI Responses / Chat Completions API using OPENAI_API_KEY.
+ * ZERO API keys are ever sent or exposed to the client browser.
+ * Includes timeout guards, structured JSON parsing, and graceful fallback to local rule heuristics.
  */
 
-// Core Action Verbs and Metrics for Heuristic Generation
-const ACTION_VERBS = [
-  'Architected', 'Spearheaded', 'Engineered', 'Orchestrated', 'Pioneered', 'Automated',
-  'Accelerated', 'Revamped', 'Streamlined', 'Delivered', 'Scaled', 'Championed',
-  'Devised', 'Overhauled', 'Transformed', 'Synthesized', 'Consolidated', 'Empowered'
-];
+import OpenAI from 'openai';
+
+// Model configuration: Cost-conscious and high performance
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 12000;
+
+/**
+ * Helper to get an initialized OpenAI client if OPENAI_API_KEY is configured
+ */
+function getOpenAIClient() {
+  const apiKey = (process.env.OPENAI_API_KEY || process.env.AI_API_KEY || '').trim();
+  if (!apiKey || apiKey === 'your_api_key_here' || apiKey.startsWith('sk-placeholder')) {
+    return null;
+  }
+  return new OpenAI({
+    apiKey,
+    timeout: TIMEOUT_MS
+  });
+}
 
 export const aiService = {
   /**
-   * 1. Generates tailored, multi-tone resume summaries
+   * 1. Resume Summary Generation
    */
   async generateResumeSummary({
     fullName = '',
-    jobTitle = 'Professional',
+    jobTitle = 'Software Engineer',
     education = '',
     skills = '',
     experience = '',
     careerGoal = ''
   }) {
-    const apiKey = process.env.AI_API_KEY;
-    const provider = process.env.AI_PROVIDER || 'custom';
+    const openai = getOpenAIClient();
 
-    // Check if external provider configured
-    if (apiKey && apiKey !== 'your_api_key_here') {
-      // Future remote API invocation hook (e.g. OpenAI / Gemini)
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are an executive resume strategist. Given a candidate's profile, generate 4 high-impact resume summaries tailored across 4 distinct professional tones:
+1. "Modern & Direct" (label: "Modern Impact")
+2. "Technical & Metric-Driven" (label: "Technical Depth")
+3. "Executive & Strategic" (label: "Leadership & Strategy")
+4. "Creative & Innovative" (label: "Creative & Product")
+
+Rules:
+- Use action verbs, Google X-Y-Z achievement formulas, and realistic percentage metrics.
+- Keep each summary between 40-70 words.
+- Return ONLY valid JSON with this schema:
+{
+  "summaries": [
+    { "tone": string, "label": string, "content": string },
+    { "tone": string, "label": string, "content": string },
+    { "tone": string, "label": string, "content": string },
+    { "tone": string, "label": string, "content": string }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ fullName, jobTitle, education, skills, experience, careerGoal })
+            }
+          ],
+          temperature: 0.7
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (Array.isArray(parsed.summaries) && parsed.summaries.length > 0) {
+          return parsed.summaries;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI summary request failed, falling back to local engine:', err.message);
+      }
     }
 
-    const nameStr = fullName ? fullName.trim() : 'Results-oriented professional';
-    const roleStr = jobTitle ? jobTitle.trim() : 'Specialist';
-    
-    let skillList = [];
-    if (Array.isArray(skills)) {
-      skillList = skills;
-    } else if (typeof skills === 'string' && skills.trim()) {
-      skillList = skills.split(/[,•\n]+/).map(s => s.trim()).filter(Boolean);
-    }
-    const topSkills = skillList.length > 0 ? skillList.slice(0, 5).join(', ') : 'modern tech stacks, architecture design, and data-driven systems';
-
-    const eduMention = education && education.trim().length > 0 
-      ? `Backed by ${education.trim().replace(/^degree in /i, '')}` 
-      : 'Backed by a rigorous academic foundation';
-
-    const expText = experience && experience.trim().length > 0 
-      ? experience.trim() 
-      : 'Demonstrated track record of executing high-impact technical initiatives';
-
-    const goalText = careerGoal && careerGoal.trim().length > 0 
-      ? `Focused on ${careerGoal.trim().replace(/^(i want to |aiming to |looking to |seeking to )/i, '')}.` 
-      : `Committed to driving continuous product innovation and delivering high-impact business outcomes.`;
-
-    const randomPct = Math.floor(Math.random() * 25) + 30; // 30-55%
+    // Graceful fallback to rule-based generation engine
+    const roleStr = jobTitle ? jobTitle.trim() : 'Software Engineer';
+    let skillList = Array.isArray(skills) ? skills : (typeof skills === 'string' ? skills.split(/[,•\n]+/).map(s => s.trim()).filter(Boolean) : []);
+    const topSkills = skillList.length > 0 ? skillList.slice(0, 5).join(', ') : 'modern web stacks, microservices, and distributed architecture';
+    const eduMention = education ? `Backed by ${education.trim().replace(/^degree in /i, '')}` : 'Backed by strong computer science fundamentals';
+    const expText = experience ? experience.trim() : 'Proven background delivering scalable product features and technical reliability';
+    const goalText = careerGoal ? `Focused on ${careerGoal.trim().replace(/^(i want to |aiming to |looking to |seeking to )/i, '')}.` : 'Committed to delivering high-impact software solutions.';
+    const randomPct = Math.floor(Math.random() * 20) + 35; // 35-55%
 
     return [
       {
@@ -66,7 +101,7 @@ export const aiService = {
       {
         tone: 'Technical & Metric-Driven',
         label: 'Technical Depth',
-        content: `High-velocity ${roleStr} skilled in ${topSkills}. Spearheaded core engineering initiatives that reduced system latency by ${randomPct}% while maintaining 99.9% uptime. ${eduMention} and ${expText}. ${goalText}`
+        content: `High-velocity ${roleStr} skilled in ${topSkills}. Spearheaded core engineering initiatives that reduced p99 system latency by ${randomPct}% while maintaining 99.9% uptime. ${eduMention} and ${expText}. ${goalText}`
       },
       {
         tone: 'Executive & Strategic',
@@ -82,24 +117,61 @@ export const aiService = {
   },
 
   /**
-   * 2. Suggests role-targeted skills and analyzes skill gaps
+   * 2. Skill Suggestions & Categorization
    */
   async suggestSkills({ targetJobTitle = 'Software Engineer', careerGoal = '' }) {
-    const roleClean = (targetJobTitle || '').toLowerCase();
+    const openai = getOpenAIClient();
 
-    if (roleClean.includes('front') || roleClean.includes('react') || roleClean.includes('ui') || roleClean.includes('web')) {
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are a technical talent recruiter. Given a target role and career goal, return 3 organized skill categories containing 5-7 current industry-standard tools, languages, and frameworks.
+Return ONLY valid JSON with this schema:
+{
+  "categories": [
+    { "category": string, "items": string[] },
+    { "category": string, "items": string[] },
+    { "category": string, "items": string[] }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ targetJobTitle, careerGoal })
+            }
+          ],
+          temperature: 0.6
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+          return parsed.categories;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI skill suggestion failed, falling back to local engine:', err.message);
+      }
+    }
+
+    // Graceful fallback to rule-based categorization
+    const roleClean = (targetJobTitle || '').toLowerCase();
+    if (roleClean.includes('front') || roleClean.includes('react') || roleClean.includes('ui')) {
       return [
         {
           category: 'Core Frontend & UI Architecture',
-          items: ['React 19', 'TypeScript', 'Next.js 14', 'Tailwind CSS', 'Redux Toolkit / Zustand', 'HTML5/Semantic Web', 'CSS Modules / PostCSS']
+          items: ['React 19', 'TypeScript', 'Next.js 14', 'Tailwind CSS', 'Redux Toolkit / Zustand', 'HTML5/Semantic Web']
         },
         {
           category: 'State & Performance Engineering',
-          items: ['React Query / TanStack', 'WebSockets', 'Core Web Vitals Optimization', 'Client-Side Caching', 'Code Splitting & Lazy Loading']
+          items: ['React Query / TanStack', 'WebSockets', 'Core Web Vitals Optimization', 'Client-Side Caching', 'Code Splitting']
         },
         {
-          category: 'Testing, Quality & Build Tooling',
-          items: ['Vite', 'Vitest / Jest', 'React Testing Library', 'Cypress / Playwright', 'ESLint / Prettier', 'Storybook']
+          category: 'Testing & Build Tooling',
+          items: ['Vite', 'Vitest / Jest', 'React Testing Library', 'Playwright', 'ESLint / Prettier']
         }
       ];
     }
@@ -115,25 +187,8 @@ export const aiService = {
           items: ['PostgreSQL', 'MongoDB', 'Redis Caching', 'Prisma / TypeORM', 'Database Indexing & Query Optimization']
         },
         {
-          category: 'DevOps, Containers & Cloud',
-          items: ['Docker', 'Kubernetes', 'AWS (EC2, S3, Lambda)', 'CI/CD Pipelines (GitHub Actions)', 'Nginx', 'Prometheus / Grafana']
-        }
-      ];
-    }
-
-    if (roleClean.includes('data') || roleClean.includes('analyst') || roleClean.includes('sql') || roleClean.includes('bi')) {
-      return [
-        {
-          category: 'Data Querying & Relational Databases',
-          items: ['Advanced SQL', 'PostgreSQL', 'MySQL', 'Snowflake', 'BigQuery']
-        },
-        {
-          category: 'Data Wrangling & Statistical Programming',
-          items: ['Python (Pandas, NumPy)', 'R', 'Excel (PowerQuery, DAX)', 'Jupyter Notebooks', 'ETL Pipelines']
-        },
-        {
-          category: 'BI Visualizations & Storytelling',
-          items: ['Power BI', 'Tableau', 'Looker', 'Matplotlib / Seaborn', 'Stakeholder Reporting']
+          category: 'DevOps & Containers',
+          items: ['Docker', 'Kubernetes', 'AWS (EC2, S3, Lambda)', 'CI/CD Pipelines (GitHub Actions)', 'Nginx']
         }
       ];
     }
@@ -156,12 +211,51 @@ export const aiService = {
   },
 
   /**
-   * 3. Analyzes Skill Gaps against target roles
+   * 3. Skill Gap Analysis
    */
   async analyzeSkillGap({ targetRole = 'fullstack', userSkills = [] }) {
+    const openai = getOpenAIClient();
+
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are an engineering career coach. Given a target role and user's current skills, perform a skill gap analysis.
+Return ONLY valid JSON with this schema:
+{
+  "targetRole": string,
+  "readinessScore": number (0-100),
+  "skillsIHave": string[],
+  "skillsToImprove": string[],
+  "recommendations": [
+    { "skill": string, "priority": "High"|"Medium"|"Low", "reason": string, "action": string }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ targetRole, userSkills })
+            }
+          ],
+          temperature: 0.6
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (parsed.readinessScore !== undefined && Array.isArray(parsed.skillsIHave)) {
+          return parsed;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI skill gap analysis failed, falling back to local engine:', err.message);
+      }
+    }
+
+    // Fallback logic
     const skillList = (userSkills || []).map(s => s.toLowerCase().replace(/[^a-z0-9]/g, ''));
     const suggestions = await this.suggestSkills({ targetJobTitle: targetRole });
-    
     const allRequired = suggestions.flatMap(g => g.items);
     const have = [];
     const missing = [];
@@ -169,18 +263,13 @@ export const aiService = {
     for (const req of allRequired) {
       const cleanReq = req.toLowerCase().replace(/[^a-z0-9]/g, '');
       const match = skillList.some(s => s.includes(cleanReq) || cleanReq.includes(s));
-      if (match) {
-        have.push(req);
-      } else {
-        missing.push(req);
-      }
+      if (match) have.push(req);
+      else missing.push(req);
     }
-
-    const readinessScore = allRequired.length > 0 ? Math.round((have.length / allRequired.length) * 100) : 0;
 
     return {
       targetRole,
-      readinessScore,
+      readinessScore: allRequired.length > 0 ? Math.round((have.length / allRequired.length) * 100) : 70,
       skillsIHave: have,
       skillsToImprove: missing,
       recommendations: missing.slice(0, 5).map(skill => ({
@@ -193,9 +282,53 @@ export const aiService = {
   },
 
   /**
-   * 4. Generates Project Recommendations
+   * 4. Project Recommendations
    */
   async recommendProjects({ targetRole = 'frontend', difficulty = 'intermediate', userSkills = [] }) {
+    const openai = getOpenAIClient();
+
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are a tech lead recommending hands-on portfolio projects for a software engineer.
+Return ONLY valid JSON with this schema:
+{
+  "projects": [
+    {
+      "title": string,
+      "difficulty": "Beginner" | "Intermediate" | "Advanced",
+      "techStack": string[],
+      "shortDescription": string,
+      "skillsPracticed": string[],
+      "estimatedTime": string,
+      "resumeValue": string,
+      "portfolioValue": string
+    }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ targetRole, difficulty, userSkills })
+            }
+          ],
+          temperature: 0.7
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+          return parsed.projects;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI project recommendation failed, falling back to local engine:', err.message);
+      }
+    }
+
     return [
       {
         title: `${targetRole.toUpperCase()} Microservice Platform`,
@@ -211,41 +344,79 @@ export const aiService = {
   },
 
   /**
-   * 5. Generates Interview Practice Questions
+   * 5. Interview Question Formulation
    */
   async generateInterviewQuestions({ targetRole = 'Full Stack Developer', projects = [], skills = [] }) {
-    const technical = [
-      {
-        id: 'tech-gen-1',
-        category: 'Technical',
-        question: `How do you optimize state management and re-rendering performance in a complex ${targetRole} application?`,
-        difficulty: 'Medium',
-        whyAsked: 'Evaluates architectural understanding of component lifecycles, memoization, and rendering bottlenecks.',
-        keyPoints: ['Virtual DOM reconciliation', 'useMemo / useCallback trade-offs', 'Atomic vs Context state', 'Network caching']
-      },
-      {
-        id: 'tech-gen-2',
-        category: 'Technical',
-        question: `Explain how you would design a rate-limiting middleware for high-traffic REST APIs.`,
-        difficulty: 'Hard',
-        whyAsked: 'Tests knowledge of backend system resilience, sliding window algorithms, and in-memory caches.',
-        keyPoints: ['Token bucket & Leaky bucket algorithms', 'Redis TTL counters', 'HTTP 429 status response headers', 'Distributed consistency']
-      }
-    ];
+    const openai = getOpenAIClient();
 
-    const projectQuestions = (projects || []).slice(0, 2).map((proj, idx) => ({
-      id: `proj-gen-${idx}`,
-      category: 'Project Architecture',
-      question: `In your project "${proj.title || 'Technical Project'}", what was the most difficult technical trade-off you made?`,
-      difficulty: 'Medium',
-      whyAsked: 'Validates authentic authorship and engineering problem-solving capabilities.',
-      keyPoints: ['STAR / CAR framework', 'Problem description and alternatives evaluated', 'Measured impact and metrics']
-    }));
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are an engineering hiring manager. Formulate tailored interview questions for a candidate based on their role, skills, and projects.
+Return ONLY valid JSON with this schema:
+{
+  "role": string,
+  "technical": [
+    { "id": string, "category": "Technical", "question": string, "difficulty": "Easy"|"Medium"|"Hard", "whyAsked": string, "keyPoints": string[] }
+  ],
+  "projectQuestions": [
+    { "id": string, "category": "Project Architecture", "question": string, "difficulty": "Medium"|"Hard", "whyAsked": string, "keyPoints": string[] }
+  ],
+  "behavioral": [
+    { "id": string, "category": "HR & Behavioral", "question": string, "difficulty": "Medium", "whyAsked": string, "keyPoints": string[] }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ targetRole, projects, skills })
+            }
+          ],
+          temperature: 0.7
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (Array.isArray(parsed.technical) && parsed.technical.length > 0) {
+          return parsed;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI interview question generation failed, falling back to local engine:', err.message);
+      }
+    }
 
     return {
       role: targetRole,
-      technical,
-      projectQuestions,
+      technical: [
+        {
+          id: 'tech-gen-1',
+          category: 'Technical',
+          question: `How do you optimize state management and re-rendering performance in a complex ${targetRole} application?`,
+          difficulty: 'Medium',
+          whyAsked: 'Evaluates architectural understanding of component lifecycles, memoization, and rendering bottlenecks.',
+          keyPoints: ['Virtual DOM reconciliation', 'useMemo / useCallback trade-offs', 'Atomic vs Context state', 'Network caching']
+        },
+        {
+          id: 'tech-gen-2',
+          category: 'Technical',
+          question: `Explain how you would design a rate-limiting middleware for high-traffic REST APIs.`,
+          difficulty: 'Hard',
+          whyAsked: 'Tests knowledge of backend system resilience, sliding window algorithms, and in-memory caches.',
+          keyPoints: ['Token bucket & Leaky bucket algorithms', 'Redis TTL counters', 'HTTP 429 status response headers', 'Distributed consistency']
+        }
+      ],
+      projectQuestions: (projects || []).slice(0, 2).map((proj, idx) => ({
+        id: `proj-gen-${idx}`,
+        category: 'Project Architecture',
+        question: `In your project "${proj.title || 'Technical Project'}", what was the most difficult technical trade-off you made?`,
+        difficulty: 'Medium',
+        whyAsked: 'Validates authentic authorship and engineering problem-solving capabilities.',
+        keyPoints: ['STAR / CAR framework', 'Problem description and alternatives evaluated', 'Measured impact and metrics']
+      })),
       behavioral: [
         {
           id: 'behav-gen-1',
@@ -260,12 +431,51 @@ export const aiService = {
   },
 
   /**
-   * 6. Matches Job Description against Candidate Resume
+   * 6. Job Description Matcher
    */
   async matchJobDescription({ jobDescription = '', resumeData = {} }) {
+    const openai = getOpenAIClient();
+
+    if (openai) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: DEFAULT_MODEL,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert ATS (Applicant Tracking System) parser and resume analyst. Compare the candidate's resume data against the provided job description.
+Identify matching skills, missing keywords, overall match percentage (0-100), and targeted section recommendations.
+Return ONLY valid JSON with this schema:
+{
+  "matchScore": number (0-100),
+  "totalKeywordsDetected": number,
+  "matchingKeywords": string[],
+  "missingKeywords": string[],
+  "sectionAdvice": [
+    { "section": string, "recommendation": string }
+  ]
+}`
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({ jobDescription, resumeData })
+            }
+          ],
+          temperature: 0.5
+        });
+
+        const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+        if (parsed.matchScore !== undefined && Array.isArray(parsed.matchingKeywords)) {
+          return parsed;
+        }
+      } catch (err) {
+        console.warn('[AI Service] OpenAI job match failed, falling back to local engine:', err.message);
+      }
+    }
+
+    // Fallback keyword parser
     const descText = (jobDescription || '').toLowerCase();
-    
-    // Extract candidate skills
     const candidateSkills = [];
     if (Array.isArray(resumeData?.skills)) {
       resumeData.skills.forEach(cat => {
@@ -275,7 +485,6 @@ export const aiService = {
       });
     }
 
-    // Common technical keyword dictionary
     const KEYWORD_MAP = {
       'react': 'React.js',
       'typescript': 'TypeScript',
@@ -297,7 +506,7 @@ export const aiService = {
       'graphql': 'GraphQL',
       'rest': 'RESTful APIs',
       'microservices': 'Microservices Architecture',
-      'testing': 'Unit & Integration Testing (Jest/Vitest)',
+      'testing': 'Unit Testing (Jest/Vitest)',
       'figma': 'Figma Design Tokens',
       'git': 'Git & Version Control'
     };
@@ -310,18 +519,14 @@ export const aiService = {
     }
 
     const candidateSkillStrings = candidateSkills.map(s => s.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    
     const matchingKeywords = [];
     const missingKeywords = [];
 
     targetKeywordsFoundInJob.forEach(kw => {
       const cleanKey = kw.key.replace(/[^a-z0-9]/g, '');
       const isMatched = candidateSkillStrings.some(cs => cs.includes(cleanKey) || cleanKey.includes(cs));
-      if (isMatched) {
-        matchingKeywords.push(kw.label);
-      } else {
-        missingKeywords.push(kw.label);
-      }
+      if (isMatched) matchingKeywords.push(kw.label);
+      else missingKeywords.push(kw.label);
     });
 
     const totalKeywords = targetKeywordsFoundInJob.length || 1;
