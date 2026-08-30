@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { 
   X, Mail, Lock, User, Sparkles, ArrowRight, 
   Github, Eye, EyeOff, ShieldCheck, CheckCircle2, 
-  AlertCircle, Zap, RefreshCw 
+  AlertCircle, Zap, RefreshCw, KeyRound, ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
 
-export function AuthModal() {
+export function AuthModal({ onAuthSuccess }) {
   const { 
     isAuthModalOpen, 
     closeAuthModal, 
@@ -15,9 +15,11 @@ export function AuthModal() {
     setAuthModalMode, 
     login, 
     signup, 
+    resetPassword,
     loginWithOAuth, 
     demoLogin, 
-    isLoading 
+    isLoading,
+    isCloudAuth
   } = useAuth();
   
   const { showToast } = useResume();
@@ -32,19 +34,34 @@ export function AuthModal() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   if (!isAuthModalOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setSuccessMessage('');
 
-    // Validation
+    // Email validation
     if (!formData.email || !formData.email.includes('@')) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
 
+    // Forgot Password Flow
+    if (authModalMode === 'forgot') {
+      try {
+        const res = await resetPassword(formData.email);
+        setSuccessMessage(res.message || 'Password reset link sent to your email.');
+        showToast('Password reset instructions sent!', 'success');
+      } catch (err) {
+        setErrorMessage(err.message || 'Failed to send password reset email.');
+      }
+      return;
+    }
+
+    // Password validation for Login & Signup
     if (!formData.password || formData.password.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
       return;
@@ -65,15 +82,17 @@ export function AuthModal() {
       }
 
       try {
-        await signup(formData.name, formData.email, formData.password);
+        const res = await signup(formData.name, formData.email, formData.password);
         showToast(`Welcome to ResuSphere AI, ${formData.name}!`, 'success');
+        if (onAuthSuccess) onAuthSuccess(res.user);
       } catch (err) {
         setErrorMessage(err.message || 'Failed to create account.');
       }
     } else {
       try {
-        await login(formData.email, formData.password);
+        const res = await login(formData.email, formData.password);
         showToast(`Welcome back, ${formData.email}!`, 'success');
+        if (onAuthSuccess) onAuthSuccess(res.user);
       } catch (err) {
         setErrorMessage(err.message || 'Invalid credentials.');
       }
@@ -84,7 +103,8 @@ export function AuthModal() {
     try {
       await loginWithOAuth(provider);
       showToast(`Signed in with ${provider}!`, 'success');
-    } catch {
+      if (onAuthSuccess) onAuthSuccess();
+    } catch (err) {
       showToast(`Failed to connect with ${provider}`, 'error');
     }
   };
@@ -92,6 +112,7 @@ export function AuthModal() {
   const handleDemoSignIn = () => {
     const u = demoLogin('engineer');
     showToast(`Signed in as demo user (${u.name})!`, 'success');
+    if (onAuthSuccess) onAuthSuccess(u);
   };
 
   return (
@@ -111,10 +132,14 @@ export function AuthModal() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white font-display">
-                {authModalMode === 'login' ? 'Welcome Back to ResuSphere' : 'Create Your Account'}
+                {authModalMode === 'login' && 'Welcome Back to ResuSphere'}
+                {authModalMode === 'signup' && 'Create Your Account'}
+                {authModalMode === 'forgot' && 'Reset Your Password'}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                {authModalMode === 'login' ? 'Sign in to access your cloud-ready dashboard' : 'Join thousands building AI-powered resumes'}
+                {authModalMode === 'login' && 'Sign in to access your cloud-ready dashboard'}
+                {authModalMode === 'signup' && 'Join thousands building AI-powered resumes & portfolios'}
+                {authModalMode === 'forgot' && 'We will send you a secure link to reset your password'}
               </p>
             </div>
           </div>
@@ -127,32 +152,51 @@ export function AuthModal() {
           </button>
         </div>
 
-        {/* Tab Switcher: Sign In vs Sign Up */}
+        {/* Tab Switcher: Sign In vs Sign Up (Hidden in forgot password mode) */}
         <div className="p-4 pt-3 space-y-4">
-          <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+          {authModalMode !== 'forgot' ? (
+            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => { setAuthModalMode('login'); setErrorMessage(''); setSuccessMessage(''); }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  authModalMode === 'login'
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthModalMode('signup'); setErrorMessage(''); setSuccessMessage(''); }}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  authModalMode === 'signup'
+                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => { setAuthModalMode('login'); setErrorMessage(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                authModalMode === 'login'
-                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
+              onClick={() => { setAuthModalMode('login'); setErrorMessage(''); setSuccessMessage(''); }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
             >
-              Sign In
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Sign In</span>
             </button>
-            <button
-              type="button"
-              onClick={() => { setAuthModalMode('signup'); setErrorMessage(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                authModalMode === 'signup'
-                  ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
+          )}
+
+          {/* Success Message Alert */}
+          {successMessage && (
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
 
           {/* Error Message Alert */}
           {errorMessage && (
@@ -162,47 +206,53 @@ export function AuthModal() {
             </div>
           )}
 
-          {/* Quick Demo Sign In Button (Developer Friendly) */}
-          <button
-            type="button"
-            onClick={handleDemoSignIn}
-            className="w-full py-2.5 px-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center gap-2 transition-all group font-display"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-            <span>1-Click Instant Sign In (Alex Chen Demo Account)</span>
-          </button>
+          {/* Quick Demo Sign In Button (Developer Friendly & Fallback) */}
+          {authModalMode !== 'forgot' && (
+            <button
+              type="button"
+              onClick={handleDemoSignIn}
+              className="w-full py-2.5 px-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-cyan-500/10 hover:from-indigo-500/20 hover:to-cyan-500/20 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 flex items-center justify-center gap-2 transition-all group font-display"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+              <span>1-Click Instant Sign In (Alex Chen Demo Account)</span>
+            </button>
+          )}
 
           {/* Social OAuth Buttons */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => handleOAuth('Google')}
-              className="p-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.3 8.9 5 12 5z"/>
-                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/>
-                <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3 0-.8.1-1.6.4-2.3L1.6 7.4C.6 9.4 0 10.6 0 12s.6 2.6 1.6 4.6l3.7-2.9z"/>
-                <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.3-6.7-5.3L1.6 16C3.5 19.8 7.4 23 12 23z"/>
-              </svg>
-              <span>Google</span>
-            </button>
+          {authModalMode !== 'forgot' && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleOAuth('Google')}
+                className="p-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.3 8.9 5 12 5z"/>
+                  <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/>
+                  <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3 0-.8.1-1.6.4-2.3L1.6 7.4C.6 9.4 0 10.6 0 12s.6 2.6 1.6 4.6l3.7-2.9z"/>
+                  <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.3-6.7-5.3L1.6 16C3.5 19.8 7.4 23 12 23z"/>
+                </svg>
+                <span>Google</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => handleOAuth('GitHub')}
-              className="p-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors"
-            >
-              <Github className="w-3.5 h-3.5 text-slate-900 dark:text-white" />
-              <span>GitHub</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => handleOAuth('GitHub')}
+                className="p-2 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors"
+              >
+                <Github className="w-3.5 h-3.5 text-slate-900 dark:text-white" />
+                <span>GitHub</span>
+              </button>
+            </div>
+          )}
 
-          <div className="flex items-center gap-2 my-2">
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-            <span className="text-[10px] font-medium text-slate-400 uppercase">Or continue with email</span>
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-          </div>
+          {authModalMode !== 'forgot' && (
+            <div className="flex items-center gap-2 my-2">
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+              <span className="text-[10px] font-medium text-slate-400 uppercase">Or continue with email</span>
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+            </div>
+          )}
 
           {/* Main Credentials Form */}
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -243,40 +293,42 @@ export function AuthModal() {
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                  Password
-                </label>
-                {authModalMode === 'login' && (
+            {authModalMode !== 'forgot' && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    Password
+                  </label>
+                  {authModalMode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => { setAuthModalMode('forgot'); setErrorMessage(''); setSuccessMessage(''); }}
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      Forgot?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full pl-9 pr-9 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
                   <button
                     type="button"
-                    onClick={() => showToast('Password reset link sent to demo email', 'info')}
-                    className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                   >
-                    Forgot?
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
-                )}
+                </div>
               </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-9 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
+            )}
 
             {authModalMode === 'signup' && (
               <div>
@@ -309,7 +361,9 @@ export function AuthModal() {
                 </>
               ) : (
                 <>
-                  <span>{authModalMode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
+                  {authModalMode === 'login' && <span>Sign In to Workspace</span>}
+                  {authModalMode === 'signup' && <span>Create Free Account</span>}
+                  {authModalMode === 'forgot' && <span>Send Reset Instructions</span>}
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
@@ -319,7 +373,9 @@ export function AuthModal() {
           {/* Privacy & Cloud Architecture Transparency Notice */}
           <div className="pt-2 flex items-center gap-2 text-[10px] text-slate-400 border-t border-slate-100 dark:border-slate-800">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>Protected with session tokens. No plaintext passwords stored locally.</span>
+            <span>
+              {isCloudAuth ? 'Connected to Supabase Auth. Passwords encrypted.' : 'Protected session. No plaintext credentials stored.'}
+            </span>
           </div>
 
         </div>

@@ -1,60 +1,94 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { dataStorageService } from '../services/dataStorageService';
 
 const AuthContext = createContext();
 
 const AUTH_STORAGE_KEY = 'resusphere_auth_session_v1';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try {
-      const session = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (session) {
-        const parsed = JSON.parse(session);
-        // Validate session structure (never store passwords)
-        if (parsed && parsed.id && parsed.email) {
-          return {
-            id: parsed.id,
-            name: parsed.name || 'Alex Chen',
-            email: parsed.email,
-            avatar: parsed.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-            role: parsed.role || 'Senior Software Engineer',
-            plan: parsed.plan || 'Pro Engineer',
-            provider: parsed.provider || 'email',
-            createdAt: parsed.createdAt || '2024-01-15'
-          };
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('login'); // 'login' | 'signup' | 'forgot'
+
+  // 1. Initialize session from Supabase (or fallback to local session) on mount
+  useEffect(() => {
+    let subscription = null;
+
+    async function initAuth() {
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (!error && data?.session) {
+            setSession(data.session);
+            mapSupabaseUser(data.session.user);
+          }
+        } catch (e) {
+          console.warn('[Auth] Supabase session retrieval failed, checking local:', e.message);
+        }
+
+        // Listen to live Supabase Auth state changes
+        try {
+          const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+            setSession(newSession);
+            if (newSession?.user) {
+              mapSupabaseUser(newSession.user);
+            } else if (_event === 'SIGNED_OUT') {
+              setUser(null);
+              localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+          });
+          subscription = authListener?.subscription;
+        } catch (err) {
+          console.warn('[Auth] Error setting up auth listener:', err.message);
+        }
+      } else {
+        // Fallback: Restore from local session
+        try {
+          const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.id && parsed.email) {
+              setUser(parsed);
+            }
+          }
+        } catch (e) {
+          console.warn('[Auth] Failed to restore local session:', e);
         }
       }
-    } catch (e) {
-      console.warn('[Auth] Failed to restore session from storage:', e);
+
+      setIsLoading(false);
     }
-    return null;
-  });
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState('login'); // 'login' | 'signup'
+    initAuth();
 
-  // Persist session token profile (excluding any sensitive credentials)
-  useEffect(() => {
-    try {
-      if (user) {
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          avatar: user.avatar,
-          role: user.role,
-          plan: user.plan,
-          provider: user.provider,
-          createdAt: user.createdAt
-        }));
-      } else {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
       }
-    } catch (e) {
-      console.warn('[Auth] Failed to save session:', e);
-    }
-  }, [user]);
+    };
+  }, []);
+
+  // Helper to map Supabase user object to unified user profile
+  const mapSupabaseUser = (sbUser) => {
+    const profile = {
+      id: sbUser.id,
+      name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+      email: sbUser.email,
+      avatar: sbUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+      role: sbUser.user_metadata?.role || 'Full-Stack Developer',
+      plan: 'Pro Engineer',
+      provider: sbUser.app_metadata?.provider || 'email',
+      createdAt: sbUser.created_at?.split('T')[0] || new Date().toISOString().split('T')[0]
+    };
+    setUser(profile);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
+    // Also ensure profile record exists in DB
+    dataStorageService.upsertProfile(sbUser.id, profile);
+    return profile;
+  };
 
   const openAuthModal = (mode = 'login') => {
     setAuthModalMode(mode);
@@ -68,12 +102,30 @@ export function AuthProvider({ children }) {
   // Sign In with Email & Password
   const login = async (email, password) => {
     setIsLoading(true);
-    // Simulate server authentication verification latency
-    await new Promise(resolve => setTimeout(resolve, 600));
 
-    // Create session profile (passwords are strictly never stored in localStorage)
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        });
+
+        if (error) throw error;
+
+        const profile = mapSupabaseUser(data.user);
+        setIsLoading(false);
+        setIsAuthModalOpen(false);
+        return { success: true, user: profile };
+      } catch (err) {
+        setIsLoading(false);
+        throw new Error(err.message || 'Invalid email or password.');
+      }
+    }
+
+    // Local Mock / Demo Fallback when Supabase is unconfigured
+    await new Promise(resolve => setTimeout(resolve, 500));
     const sessionUser = {
-      id: `usr_${Math.random().toString(36).substring(2, 9)}`,
+      id: `usr_${email.replace(/[^a-z0-9]/gi, '_')}`,
       name: email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       email: email.trim(),
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
@@ -84,6 +136,7 @@ export function AuthProvider({ children }) {
     };
 
     setUser(sessionUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser));
     setIsLoading(false);
     setIsAuthModalOpen(false);
     return { success: true, user: sessionUser };
@@ -92,10 +145,37 @@ export function AuthProvider({ children }) {
   // Create Account with Name, Email & Password
   const signup = async (name, email, password) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 700));
 
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              full_name: name.trim()
+            }
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+          const profile = mapSupabaseUser(data.user);
+          setIsLoading(false);
+          setIsAuthModalOpen(false);
+          return { success: true, user: profile };
+        }
+      } catch (err) {
+        setIsLoading(false);
+        throw new Error(err.message || 'Failed to create account.');
+      }
+    }
+
+    // Local Mock / Demo Fallback
+    await new Promise(resolve => setTimeout(resolve, 600));
     const sessionUser = {
-      id: `usr_${Math.random().toString(36).substring(2, 9)}`,
+      id: `usr_${email.replace(/[^a-z0-9]/gi, '_')}`,
       name: name.trim() || 'Alex Chen',
       email: email.trim(),
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
@@ -106,16 +186,51 @@ export function AuthProvider({ children }) {
     };
 
     setUser(sessionUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser));
     setIsLoading(false);
     setIsAuthModalOpen(false);
     return { success: true, user: sessionUser };
   };
 
-  // Social OAuth (Google / GitHub)
+  // Password Reset Request
+  const resetPassword = async (email) => {
+    setIsLoading(true);
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+        setIsLoading(false);
+        if (error) throw error;
+        return { success: true, message: 'Password reset link sent to your email.' };
+      } catch (err) {
+        setIsLoading(false);
+        throw new Error(err.message || 'Failed to send password reset email.');
+      }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 400));
+    setIsLoading(false);
+    return { success: true, message: 'Password reset simulation sent to email.' };
+  };
+
+  // Social OAuth
   const loginWithOAuth = async (providerName = 'google') => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
 
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: providerName.toLowerCase()
+        });
+        if (error) throw error;
+        return;
+      } catch (err) {
+        setIsLoading(false);
+        throw new Error(err.message || `Failed to authenticate with ${providerName}`);
+      }
+    }
+
+    // Local Demo OAuth
+    await new Promise(resolve => setTimeout(resolve, 400));
     const isGoogle = providerName.toLowerCase() === 'google';
     const sessionUser = {
       id: `usr_oauth_${Math.random().toString(36).substring(2, 9)}`,
@@ -129,6 +244,7 @@ export function AuthProvider({ children }) {
     };
 
     setUser(sessionUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionUser));
     setIsLoading(false);
     setIsAuthModalOpen(false);
     return { success: true, user: sessionUser };
@@ -148,22 +264,33 @@ export function AuthProvider({ children }) {
     };
 
     setUser(demoUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(demoUser));
     setIsAuthModalOpen(false);
     return demoUser;
   };
 
   // Sign Out
-  const logout = () => {
+  const logout = async () => {
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('[Auth] Supabase signOut error:', err.message);
+      }
+    }
     setUser(null);
+    setSession(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   const value = {
     user,
+    session,
     isAuthenticated: Boolean(user),
     isLoading,
     login,
     signup,
+    resetPassword,
     loginWithOAuth,
     demoLogin,
     logout,
@@ -172,12 +299,7 @@ export function AuthProvider({ children }) {
     openAuthModal,
     closeAuthModal,
     setAuthModalMode,
-    // Cloud Auth Provider Status for Transparency
-    authProviderConfig: {
-      isCloudConfigured: false,
-      readyFor: ['Supabase Auth', 'Firebase Auth', 'Auth0', 'Custom JWT Server'],
-      mode: 'Local Session Token (Dev Ready)'
-    }
+    isCloudAuth: isSupabaseConfigured()
   };
 
   return (

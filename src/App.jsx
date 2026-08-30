@@ -18,7 +18,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { Toast } from './components/common/Toast';
 
 function AppContent() {
-  const { activeView } = useResume();
+  const { activeView, setActiveView } = useResume();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
@@ -41,7 +41,7 @@ function AppContent() {
       <AtsScannerModal />
       <PdfExportModal />
       <ClearResumeModal />
-      <AuthModal />
+      <AuthModal onAuthSuccess={() => setActiveView('dashboard')} />
       <Toast />
     </div>
   );
