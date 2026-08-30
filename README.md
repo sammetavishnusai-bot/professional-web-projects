@@ -8,7 +8,7 @@ An end-to-end, open-source career preparation and resume platform designed for s
 
 ## 🌐 Live Demo & Repository
 
-- **Live Web Application**: [https://professional-web-projects.vercel.app](https://professional-web-projects.vercel.app)
+- **Live Web Application**: https://professional-web-projects-y7bu.vercel.app/
 - **GitHub Repository**: [https://github.com/sammetavishnusai-bot/professional-web-projects](https://github.com/sammetavishnusai-bot/professional-web-projects)
 
 ---
