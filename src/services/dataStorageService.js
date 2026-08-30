@@ -332,6 +332,8 @@ export const dataStorageService = {
           projects: updatedPortfolioData.projects,
           achievements: updatedPortfolioData.achievements,
           certifications: updatedPortfolioData.certifications,
+          is_published: updatedPortfolioData.isPublished !== undefined ? updatedPortfolioData.isPublished : true,
+          slug: updatedPortfolioData.slug || updatedPortfolioData.fullName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'developer',
           updated_at: new Date().toISOString()
         };
 
@@ -355,6 +357,107 @@ export const dataStorageService = {
       localStorage.setItem('resusphere_portfolio_v2', JSON.stringify(updatedPortfolioData));
     }
     return createResponse(updatedPortfolioData, null, 'local');
+  },
+
+  async publishPortfolio(userId = 'guest', customSlug, portfolioData) {
+    const slug = (customSlug || portfolioData?.fullName || 'developer').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const updatedData = {
+      ...portfolioData,
+      slug,
+      isPublished: true,
+      publishedAt: new Date().toISOString()
+    };
+    return this.updatePortfolio(userId, updatedData);
+  },
+
+  async unpublishPortfolio(userId = 'guest', portfolioData) {
+    const updatedData = {
+      ...portfolioData,
+      isPublished: false,
+      unpublishedAt: new Date().toISOString()
+    };
+    return this.updatePortfolio(userId, updatedData);
+  },
+
+  async getPublicPortfolio(slug) {
+    const cleanSlug = (slug || '').toLowerCase().trim();
+    if (!cleanSlug) return createResponse(null, 'Invalid portfolio username or slug');
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('portfolios')
+          .select('id, full_name, headline, bio, avatar_url, theme, contact_email, github_url, linkedin_url, skills, education, projects, achievements, certifications, is_published, slug, updated_at')
+          .eq('slug', cleanSlug)
+          .eq('is_published', true)
+          .single();
+
+        if (!error && data) {
+          const formatted = {
+            id: data.id,
+            fullName: data.full_name,
+            headline: data.headline,
+            bio: data.bio,
+            avatar: data.avatar_url,
+            theme: data.theme || 'modern-developer',
+            email: data.contact_email,
+            github: data.github_url,
+            linkedin: data.linkedin_url,
+            skills: data.skills || [],
+            education: data.education || [],
+            projects: data.projects || [],
+            achievements: data.achievements || [],
+            certifications: data.certifications || [],
+            isPublished: data.is_published,
+            slug: data.slug,
+            updatedAt: data.updated_at
+          };
+          return createResponse(formatted, null, 'supabase');
+        }
+      } catch (err) {
+        console.warn('[DataStorage] Supabase getPublicPortfolio query failed:', err.message);
+      }
+    }
+
+    // Local storage lookup for public demo & offline test mode
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith(STORAGE_KEYS.PORTFOLIO_PREFIX) || key === 'resusphere_portfolio_v2')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const userSlug = (parsed.slug || parsed.fullName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'developer').toLowerCase();
+            if (userSlug === cleanSlug) {
+              if (parsed.isPublished === false) {
+                return createResponse(null, 'This portfolio is currently private or unpublished.');
+              }
+              return createResponse({
+                fullName: parsed.fullName || 'Developer',
+                headline: parsed.headline || 'Software Engineer',
+                bio: parsed.bio || '',
+                avatar: parsed.avatar || '',
+                theme: parsed.theme || 'modern-developer',
+                email: parsed.email || '',
+                github: parsed.github || '',
+                linkedin: parsed.linkedin || '',
+                skills: parsed.skills || [],
+                education: parsed.education || [],
+                projects: parsed.projects || [],
+                achievements: parsed.achievements || [],
+                certifications: parsed.certifications || [],
+                isPublished: parsed.isPublished !== false,
+                slug: userSlug
+              }, null, 'local');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[DataStorage] Local public portfolio lookup failed:', e);
+    }
+
+    return createResponse(null, 'Portfolio not found or currently unpublished.');
   },
 
   // ===========================================================================
