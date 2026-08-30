@@ -1,13 +1,14 @@
 /**
- * Supabase Client Configuration (Browser / Frontend)
+ * Supabase Client Configuration (Browser / Universal)
  * Initializes Supabase using ONLY public environment variables (URL and ANON KEY).
  * NEVER includes or references the service-role secret key.
  */
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' ? process.env : {});
+const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '';
 
 /**
  * Safe configuration check

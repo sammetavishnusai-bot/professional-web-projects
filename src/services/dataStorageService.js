@@ -1,7 +1,7 @@
 /**
  * Unified Data Access Repository Layer (ResuSphere AI)
  * Connects to Supabase Cloud PostgreSQL when configured (using public anon key only).
- * Automatically falls back to scoped localStorage persistence when Supabase is unconfigured or offline.
+ * Automatically falls back to scoped localStorage persistence with strict multi-tenant isolation.
  *
  * Handles:
  * - profiles
@@ -13,7 +13,7 @@
  * - job_applications
  */
 
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 
 const STORAGE_KEYS = {
   RESUME_PREFIX: 'resusphere_user_resume_',
@@ -148,7 +148,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.RESUME_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(resumeData));
-    localStorage.setItem('resusphere_data_v2', JSON.stringify(resumeData));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_data_v2', JSON.stringify(resumeData));
+    }
     return createResponse(record, null, 'local');
   },
 
@@ -164,7 +166,6 @@ export const dataStorageService = {
           .single();
 
         if (!error && data) {
-          // Map DB columns to client state format
           const formatted = {
             id: data.id,
             personalInfo: data.personal_info,
@@ -184,7 +185,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.RESUME_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_data_v2');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_data_v2') : null);
     return createResponse(saved ? JSON.parse(saved) : null, null, 'local');
   },
 
@@ -219,7 +220,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.RESUME_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(updatedResumeData));
-    localStorage.setItem('resusphere_data_v2', JSON.stringify(updatedResumeData));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_data_v2', JSON.stringify(updatedResumeData));
+    }
     return createResponse(updatedResumeData, null, 'local');
   },
 
@@ -266,7 +269,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.PORTFOLIO_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(portfolioData));
-    localStorage.setItem('resusphere_portfolio_v2', JSON.stringify(portfolioData));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_portfolio_v2', JSON.stringify(portfolioData));
+    }
     return createResponse(record, null, 'local');
   },
 
@@ -306,7 +311,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.PORTFOLIO_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_portfolio_v2');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_portfolio_v2') : null);
     return createResponse(saved ? JSON.parse(saved) : null, null, 'local');
   },
 
@@ -346,7 +351,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.PORTFOLIO_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(updatedPortfolioData));
-    localStorage.setItem('resusphere_portfolio_v2', JSON.stringify(updatedPortfolioData));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_portfolio_v2', JSON.stringify(updatedPortfolioData));
+    }
     return createResponse(updatedPortfolioData, null, 'local');
   },
 
@@ -379,7 +386,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.ROADMAP_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(milestoneStates));
-    localStorage.setItem('resusphere_roadmap_progress_v1', JSON.stringify(milestoneStates));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_roadmap_progress_v1', JSON.stringify(milestoneStates));
+    }
     return createResponse(milestoneStates, null, 'local');
   },
 
@@ -402,7 +411,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.ROADMAP_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_roadmap_progress_v1');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_roadmap_progress_v1') : null);
     return createResponse(saved ? JSON.parse(saved) : {}, null, 'local');
   },
 
@@ -440,7 +449,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.PROJECT_GUIDE_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(projectData.completedTasks || {}));
-    localStorage.setItem('resusphere_project_guide_progress_v1', JSON.stringify(projectData.completedTasks || {}));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_project_guide_progress_v1', JSON.stringify(projectData.completedTasks || {}));
+    }
     return createResponse(record, null, 'local');
   },
 
@@ -463,7 +474,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.PROJECT_GUIDE_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_project_guide_progress_v1');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_project_guide_progress_v1') : null);
     return createResponse({ completedTasks: saved ? JSON.parse(saved) : {} }, null, 'local');
   },
 
@@ -497,7 +508,9 @@ export const dataStorageService = {
 
     const key = this.getScopedKey(STORAGE_KEYS.INTERVIEW_PREP_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(questionStates));
-    localStorage.setItem('resusphere_interview_prep_progress_v1', JSON.stringify(questionStates));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_interview_prep_progress_v1', JSON.stringify(questionStates));
+    }
     return createResponse(questionStates, null, 'local');
   },
 
@@ -520,7 +533,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.INTERVIEW_PREP_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_interview_prep_progress_v1');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_interview_prep_progress_v1') : null);
     return createResponse(saved ? JSON.parse(saved) : {}, null, 'local');
   },
 
@@ -557,7 +570,7 @@ export const dataStorageService = {
     }
 
     const key = this.getScopedKey(STORAGE_KEYS.JOB_APPLICATIONS_PREFIX, userId);
-    const saved = localStorage.getItem(key) || localStorage.getItem('resusphere_job_applications_v1');
+    const saved = localStorage.getItem(key) || (userId === 'guest' ? localStorage.getItem('resusphere_job_applications_v1') : null);
     return createResponse(saved ? JSON.parse(saved) : [], null, 'local');
   },
 
@@ -610,7 +623,9 @@ export const dataStorageService = {
     const updatedList = [clientRecord, ...list];
     const key = this.getScopedKey(STORAGE_KEYS.JOB_APPLICATIONS_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(updatedList));
-    localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(updatedList));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(updatedList));
+    }
     return createResponse(clientRecord, null, 'local');
   },
 
@@ -652,7 +667,9 @@ export const dataStorageService = {
     );
     const key = this.getScopedKey(STORAGE_KEYS.JOB_APPLICATIONS_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(updatedList));
-    localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(updatedList));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(updatedList));
+    }
     return createResponse(updatedList.find(a => a.id === applicationId) || null, null, 'local');
   },
 
@@ -678,7 +695,9 @@ export const dataStorageService = {
     const filtered = list.filter(app => app.id !== applicationId);
     const key = this.getScopedKey(STORAGE_KEYS.JOB_APPLICATIONS_PREFIX, userId);
     localStorage.setItem(key, JSON.stringify(filtered));
-    localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(filtered));
+    if (userId === 'guest') {
+      localStorage.setItem('resusphere_job_applications_v1', JSON.stringify(filtered));
+    }
     return createResponse({ deleted: true, id: applicationId }, null, 'local');
   }
 };
