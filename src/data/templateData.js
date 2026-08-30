@@ -1,5 +1,17 @@
 export const TEMPLATES = [
   {
+    id: 'classic',
+    name: 'Classic',
+    tagline: 'Timeless Serif & Executive Authority',
+    badge: 'Classic',
+    atsRating: '100% ATS Pass Rate',
+    bestFor: 'Academic Researchers, Traditional Enterprise, Finance, Law & Executive Leadership',
+    description: 'An authoritative editorial format utilizing classic serif typography, centered header hierarchy, and formal initiative breakdowns.',
+    accentDefault: '#1e293b',
+    layoutType: 'Editorial Serif Column',
+    features: ['Editorial Serif Typography', 'Centered Formal Header', 'Executive Summary Focus', 'Publication & Project Section']
+  },
+  {
     id: 'modern',
     name: 'Modern',
     tagline: 'High-Impact Tech & SaaS',
@@ -50,13 +62,13 @@ export const TEMPLATES = [
   {
     id: 'executive',
     name: 'Executive',
-    tagline: 'Editorial & C-Suite Authority',
+    tagline: 'Corporate Leadership & Grid System',
     badge: 'Leadership',
     atsRating: '99% ATS Pass Rate',
-    bestFor: 'C-Suite (CTO/CEO/VP), Senior Staff Leaders, Academic Researchers & Doctors',
-    description: 'An authoritative editorial format utilizing classic serif typography, centered header hierarchy, and formal initiative breakdowns.',
-    accentDefault: '#1e293b',
-    layoutType: 'Editorial Serif Column',
-    features: ['Editorial Serif Typography', 'Centered Formal Header', 'Executive Summary Focus', 'Publication & Project Section']
+    bestFor: 'C-Suite (CTO/CEO/VP), Senior Staff Leaders & Technical Directors',
+    description: 'A structured corporate layout emphasizing leadership scope, business metrics, and team scale.',
+    accentDefault: '#0f172a',
+    layoutType: 'Executive Grid Layout',
+    features: ['Leadership Scope Header', 'Metric Cards', 'Comprehensive Experience Grid', 'Clean Section Accents']
   }
 ];

@@ -6,6 +6,7 @@ import { MinimalTemplate } from '../templates/MinimalTemplate';
 import { ProfessionalTemplate } from '../templates/ProfessionalTemplate';
 import { CreativeTemplate } from '../templates/CreativeTemplate';
 import { ExecutiveTemplate } from '../templates/ExecutiveTemplate';
+import { SerifClassicTemplate } from '../templates/SerifClassicTemplate';
 
 export function ResumeCanvas() {
   const { 
@@ -36,11 +37,13 @@ export function ResumeCanvas() {
       case 'professional':
       case 'nordic-indigo':
         return <ProfessionalTemplate {...props} />;
+      case 'classic':
+      case 'serif-classic':
+        return <SerifClassicTemplate {...props} />;
       case 'creative':
       case 'creative-compact':
         return <CreativeTemplate {...props} />;
       case 'executive':
-      case 'serif-classic':
         return <ExecutiveTemplate {...props} />;
       default:
         return <ModernTemplate {...props} />;

@@ -131,7 +131,7 @@ export function TemplateSelectorForm() {
           </div>
         );
 
-      case 'executive':
+      case 'classic':
       case 'serif-classic':
         return (
           <div className="w-full h-28 bg-[#faf8f5] dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 flex flex-col justify-between overflow-hidden shadow-inner text-[8px]">
@@ -149,6 +149,23 @@ export function TemplateSelectorForm() {
             <div className="space-y-1 border-t border-slate-200 dark:border-slate-800 pt-1">
               <div className="w-16 h-1.5 rounded bg-slate-900 dark:bg-slate-200" />
               <div className="w-full h-1 bg-slate-300 dark:bg-slate-700 rounded" />
+            </div>
+          </div>
+        );
+
+      case 'executive':
+        return (
+          <div className="w-full h-28 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 flex flex-col justify-between overflow-hidden shadow-inner text-[8px]">
+            <div className="border-b pb-1.5 flex justify-between items-center" style={{ borderColor: activeColor }}>
+              <div className="w-16 h-2 rounded bg-slate-900 dark:bg-slate-100" />
+              <div className="w-10 h-1.5 rounded bg-slate-400" />
+            </div>
+            <div className="space-y-1 py-1">
+              <div className="w-12 h-1.5 rounded bg-slate-800 dark:bg-slate-200" />
+              <div className="w-full h-1 bg-slate-300 dark:bg-slate-700 rounded" />
+            </div>
+            <div className="flex gap-1 border-t border-slate-100 dark:border-slate-800 pt-1">
+              <div className="w-8 h-1.5 rounded bg-slate-200 dark:bg-slate-700" />
             </div>
           </div>
         );
@@ -172,7 +189,7 @@ export function TemplateSelectorForm() {
               Choose Resume Template
             </h2>
             <span className="text-[10px] font-semibold font-mono px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
-              5 Luxury Architectures
+              6 Professional Architectures
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -186,7 +203,7 @@ export function TemplateSelectorForm() {
         </div>
       </div>
 
-      {/* 5 Template Cards Grid */}
+      {/* 6 Template Cards Grid */}
       <div className="grid grid-cols-1 gap-4">
         {TEMPLATES.map((tpl) => {
           const isSelected = activeTemplate === tpl.id || 
@@ -194,7 +211,8 @@ export function TemplateSelectorForm() {
             (tpl.id === 'minimal' && activeTemplate === 'executive-minimal') ||
             (tpl.id === 'professional' && activeTemplate === 'nordic-indigo') ||
             (tpl.id === 'creative' && activeTemplate === 'creative-compact') ||
-            (tpl.id === 'executive' && activeTemplate === 'serif-classic');
+            (tpl.id === 'classic' && (activeTemplate === 'classic' || activeTemplate === 'serif-classic')) ||
+            (tpl.id === 'executive' && activeTemplate === 'executive');
 
           return (
             <div
