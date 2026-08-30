@@ -7,6 +7,22 @@ import {
 } from 'lucide-react';
 import { useResume } from '../../context/ResumeContext';
 
+/**
+ * XSS-Safe URL Sanitizer: Blocks javascript:, data:, vbscript: URIs
+ */
+function safeUrl(rawUrl, defaultProtocol = 'https://') {
+  if (!rawUrl || typeof rawUrl !== 'string') return '#';
+  const trimmed = rawUrl.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return '#';
+  }
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('mailto:')) {
+    return trimmed;
+  }
+  return `${defaultProtocol}${trimmed}`;
+}
+
 export function PortfolioLivePreview({ previewMode = 'desktop' }) {
   const { portfolioData, portfolioTheme, accentColor, showToast } = useResume();
   const { 
@@ -319,9 +335,9 @@ export function PortfolioLivePreview({ previewMode = 'desktop' }) {
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/80">
                     {proj.link && (
                       <a
-                        href={proj.link}
+                        href={safeUrl(proj.link)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
                       >
                         <span>Live Demo</span>
@@ -330,9 +346,9 @@ export function PortfolioLivePreview({ previewMode = 'desktop' }) {
                     )}
                     {proj.github && (
                       <a
-                        href={proj.github}
+                        href={safeUrl(proj.github)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className={`text-xs font-medium ${subText} hover:text-slate-900 dark:hover:text-white flex items-center gap-1 ml-auto`}
                       >
                         <Github className="w-3.5 h-3.5" />

@@ -8,6 +8,22 @@ import {
 import { dataStorageService } from '../../services/dataStorageService';
 import { useResume } from '../../context/ResumeContext';
 
+/**
+ * XSS-Safe URL Sanitizer: Blocks javascript:, data:, vbscript: URIs
+ */
+function safeUrl(rawUrl, defaultProtocol = 'https://') {
+  if (!rawUrl || typeof rawUrl !== 'string') return '#';
+  const trimmed = rawUrl.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return '#';
+  }
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('mailto:')) {
+    return trimmed;
+  }
+  return `${defaultProtocol}${trimmed}`;
+}
+
 export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
   const { setActiveView, showToast } = useResume();
   const [slug, setSlug] = useState(() => {
@@ -197,7 +213,7 @@ export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-3">
               {email && (
                 <a 
-                  href={`mailto:${email}`} 
+                  href={`mailto:${email.replace(/[^\w.@+-]/g, '')}`} 
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 transition-colors"
                 >
                   <Mail className="w-3.5 h-3.5 text-indigo-400" />
@@ -206,9 +222,9 @@ export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
               )}
               {github && (
                 <a 
-                  href={github.startsWith('http') ? github : `https://${github}`} 
+                  href={safeUrl(github)} 
                   target="_blank" 
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 transition-colors"
                 >
                   <Github className="w-3.5 h-3.5" />
@@ -217,9 +233,9 @@ export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
               )}
               {linkedin && (
                 <a 
-                  href={linkedin.startsWith('http') ? linkedin : `https://${linkedin}`} 
+                  href={safeUrl(linkedin)} 
                   target="_blank" 
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center gap-1.5 transition-colors"
                 >
                   <Linkedin className="w-3.5 h-3.5 text-cyan-400" />
@@ -278,9 +294,9 @@ export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
                       <div className="flex items-center gap-2 text-slate-400">
                         {proj.github && (
                           <a 
-                            href={proj.github.startsWith('http') ? proj.github : `https://${proj.github}`} 
+                            href={safeUrl(proj.github)} 
                             target="_blank" 
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="hover:text-white transition-colors"
                             title="Source Code"
                           >
@@ -289,9 +305,9 @@ export function PublicPortfolioView({ usernameSlug, onBackToHome }) {
                         )}
                         {proj.link && (
                           <a 
-                            href={proj.link.startsWith('http') ? proj.link : `https://${proj.link}`} 
+                            href={safeUrl(proj.link)} 
                             target="_blank" 
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="hover:text-cyan-400 transition-colors"
                             title="Live Demo"
                           >
